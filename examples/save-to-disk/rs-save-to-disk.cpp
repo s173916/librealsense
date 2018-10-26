@@ -18,6 +18,10 @@ void metadata_to_csv(const rs2::frame& frm, const std::string& filename);
 // It can be useful for debugging an embedded system with no display.
 int main(int argc, char * argv[]) try
 {
+    char* fn_prefix = "test";
+    if (argc > 1) {
+        fn_prefix = argv[1];
+    }
     // Declare depth colorizer for pretty visualization of depth data
     rs2::colorizer color_map;
 
@@ -29,6 +33,8 @@ int main(int argc, char * argv[]) try
     rs2::config cfg;
     cfg.enable_stream(RS2_STREAM_INFRARED, 1);
     cfg.enable_stream(RS2_STREAM_INFRARED, 2);
+    cfg.enable_stream(RS2_STREAM_COLOR);
+    cfg.enable_stream(RS2_STREAM_DEPTH);
     rs2::pipeline pipe;
     pipe.start(cfg);
 
@@ -39,10 +45,6 @@ int main(int argc, char * argv[]) try
     // has settled, we will write these to disk
     for (auto&& frame : pipe.wait_for_frames())
     {
-        static int i = 0;
-        std::cout << i << std::endl;
-        i++;
-
         // We can only save video frames as pngs, so we skip the rest
         if (auto vf = frame.as<rs2::video_frame>())
         {
@@ -52,15 +54,16 @@ int main(int argc, char * argv[]) try
 
             // Write images to disk
             std::stringstream png_file;
-            png_file << "rs-save-to-disk-output-" << vf.get_profile().stream_name() << ".png";
+            //png_file << "rs-save-to-disk-output-" << vf.get_profile().stream_name() << ".png";
+            png_file << fn_prefix << "_" << vf.get_profile().stream_name() << ".png";
             stbi_write_png(png_file.str().c_str(), vf.get_width(), vf.get_height(),
                            vf.get_bytes_per_pixel(), vf.get_data(), vf.get_stride_in_bytes());
             std::cout << "Saved " << png_file.str() << std::endl;
 
             // Record per-frame metadata for UVC streams
             std::stringstream csv_file;
-            csv_file << "rs-save-to-disk-output-" << vf.get_profile().stream_name()
-                     << "-metadata.csv";
+            //csv_file << "rs-save-to-disk-output-" << vf.get_profile().stream_name() << "-metadata.csv";
+            csv_file << fn_prefix << "_" << vf.get_profile().stream_name() << "-metadata.csv";
             metadata_to_csv(vf, csv_file.str());
         }
     }
