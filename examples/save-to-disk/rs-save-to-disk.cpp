@@ -22,9 +22,15 @@ int main(int argc, char * argv[]) try
     rs2::colorizer color_map;
 
     // Declare RealSense pipeline, encapsulating the actual device and sensors
-    rs2::pipeline pipe;
+    //rs2::pipeline pipe;
     // Start streaming with default recommended configuration
-    pipe.start();
+    //pipe.start();
+
+    rs2::config cfg;
+    cfg.enable_stream(RS2_STREAM_INFRARED, 1);
+    cfg.enable_stream(RS2_STREAM_INFRARED, 2);
+    rs2::pipeline pipe;
+    pipe.start(cfg);
 
     // Capture 30 frames to give autoexposure, etc. a chance to settle
     for (auto i = 0; i < 30; ++i) pipe.wait_for_frames();
@@ -33,6 +39,10 @@ int main(int argc, char * argv[]) try
     // has settled, we will write these to disk
     for (auto&& frame : pipe.wait_for_frames())
     {
+        static int i = 0;
+        std::cout << i << std::endl;
+        i++;
+
         // We can only save video frames as pngs, so we skip the rest
         if (auto vf = frame.as<rs2::video_frame>())
         {
