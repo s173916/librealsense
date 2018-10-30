@@ -19,23 +19,27 @@ int main(int argc, char * argv[]) try
 
     // Declare RealSense pipeline, encapsulating the actual device and sensors
     rs2::pipeline pipe;
+    rs2::config cfg;
+    cfg.enable_stream(RS2_STREAM_COLOR);
+    cfg.enable_stream(RS2_STREAM_INFRARED, 1);
+    cfg.enable_stream(RS2_STREAM_INFRARED, 2);
+    cfg.enable_stream(RS2_STREAM_DEPTH);
     // Start streaming with default recommended configuration
-    pipe.start();
+    pipe.start(cfg);
 
     while(app) // Application still alive?
     {
         rs2::frameset data = pipe.wait_for_frames(); // Wait for next set of frames from the camera
 
+        rs2::frame color = data.get_color_frame();  // Find the color data
+        rs2::frame ir_l = data.get_infrared_frame(1);  // "left"
+        rs2::frame ir_r = data.get_infrared_frame(2);  // "right"
         rs2::frame depth = color_map.process(data.get_depth_frame()); // Find and colorize the depth data
-        rs2::frame color = data.get_color_frame();            // Find the color data
 
-        // For cameras that don't have RGB sensor, we'll render infrared frames instead of color
-        if (!color)
-            color = data.get_infrared_frame();
-
-        // Render depth on to the first half of the screen and color on to the second
-        depth_image.render(depth, { 0,               0, app.width() / 2, app.height() });
-        color_image.render(color, { app.width() / 2, 0, app.width() / 2, app.height() });
+        color_image.render(color, { 0,                 0, app.width() / 4, app.height() });
+        color_image.render(ir_l,  { app.width() / 4,   0, app.width() / 4, app.height() });
+        color_image.render(depth, { app.width() / 4*2, 0, app.width() / 4, app.height() });
+        color_image.render(ir_r,  { app.width() / 4*3, 0, app.width() / 4, app.height() });
     }
 
     return EXIT_SUCCESS;
