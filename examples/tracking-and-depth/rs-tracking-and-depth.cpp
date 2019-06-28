@@ -6,6 +6,7 @@
 
 #include <algorithm>            // std::min, std::max
 #include <fstream>              // std::ifstream
+#include <iomanip>
 
 // Helper functions
 void register_glfw_callbacks(window& app, glfw_state& app_state);
@@ -23,6 +24,7 @@ int main(int argc, char * argv[]) try
     rs2::pointcloud pc;
     // We want the points object to be persistent so we can display the last cloud when a frame drops
     rs2::points points;
+    double ts_depth;
     // store pose and timestamp
     rs2::pose_frame pose_frame(nullptr);
 
@@ -57,6 +59,10 @@ int main(int argc, char * argv[]) try
         }
     }
 
+    uint64_t pose_counter = 0;
+    uint64_t frame_counter = 0;
+    uint64_t rendering_counter = 0;
+    auto last_print = std::chrono::system_clock::now();
     while (app) // Application still alive?
     {
         for (auto &&pipe : pipelines) // loop over pipelines
@@ -78,8 +84,11 @@ int main(int argc, char * argv[]) try
             auto depth = frames.get_depth_frame();
 
             // Generate the pointcloud and texture mappings
-            if (depth)
+            if (depth) {
                 points = pc.calculate(depth);
+                ts_depth = depth.get_timestamp();
+                frame_counter++;
+            }
 
             // Upload the color frame to OpenGL
             if (color)
@@ -88,14 +97,33 @@ int main(int argc, char * argv[]) try
 
             // pose
             auto pose = frames.get_pose_frame();
-            if (pose)
+            if (pose) {
                 pose_frame = pose;
+                pose_counter++;
+            }
         }
 
         // Draw the pointcloud
         if (points && pose_frame) {
+            //timing
+            double ts_pose = pose_frame.get_timestamp();
+            std::cout << "ts_{depth,pose}_ms: " << std::setprecision(16) << ts_depth << ", " << ts_pose << " dt_ms (depth wrt pose) = " << ts_depth - ts_pose << std::endl;
             rs2_pose pose =  pose_frame.get_pose_data();
             draw_pointcloud_wrt_world(app.width(), app.height(), app_state, points, pose, H_t265_d400);
+            rendering_counter++;
+        }
+
+        // Print the approximate pose and image rates once per second
+        auto now = std::chrono::system_clock::now();
+        if (now - last_print >= std::chrono::seconds(1)) {
+            std::cout << std::setprecision(0) << std::fixed
+                      << "Pose rate: "  << pose_counter << " "
+                      << "Image rate: "  << frame_counter << " "
+                      << "Rendering rate: " << rendering_counter << std::endl;
+            pose_counter = 0;
+            frame_counter = 0;
+            rendering_counter = 0;
+            last_print = now;
         }
     }
 
