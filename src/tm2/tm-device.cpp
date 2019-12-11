@@ -36,10 +36,10 @@ static uint64_t bytesSwap(uint64_t val)
 #endif
 }
 
-#include "t265-messages.h"
-using namespace t265;
+#include "t265-messages.h" //
+using namespace t265; //
 
-#include "message-print.h"
+#include "message-print.h" //
 
 #define SENSOR_TYPE_POS (0)
 #define SENSOR_TYPE_MASK (0x001F << SENSOR_TYPE_POS) /**< Bits 0-4 */
@@ -51,6 +51,7 @@ using namespace t265;
 
 
 // on the MCCI (Myriad) device, endpoint numbering starts at 0
+// 
 #define ENDPOINT_DEV_IN 0
 #define ENDPOINT_DEV_OUT 0
 #define ENDPOINT_DEV_MSGS_IN 1
@@ -81,9 +82,9 @@ enum log_level {
 
 #define FREE_CONT 0x8001
 
-static const int MAX_TRANSFER_SIZE = 848 * 800 + sizeof(bulk_message_video_stream); // max size on ENDPOINT_HOST_IN
-static const int USB_TIMEOUT = 10000/*ms*/;
-static const int BUFFER_SIZE = 1024; // Max size for control transfers
+static const int MAX_TRANSFER_SIZE = 848 * 800 + sizeof(bulk_message_video_stream); // max size on ENDPOINT_HOST_IN //
+static const int USB_TIMEOUT = 10000/*ms*/; //
+static const int BUFFER_SIZE = 1024; // Max size for control transfers //
 
 const std::map<PixelFormat, rs2_format> tm2_formats_map =
 {
@@ -126,7 +127,7 @@ inline int tm2_sensor_id(rs2_stream type, int stream_index)
 {
     int stream_type = tm2_sensor_type(type);
     if (stream_type == SensorType::Fisheye)
-        stream_index--;
+        stream_index--; //
 
     return stream_index;
 }
@@ -179,7 +180,7 @@ namespace librealsense
         bool is_enabled() const override { return true; }
 
         explicit exposure_option(tm2_sensor& ep) : _ep(ep),
-            option_base(option_range{ 200, 16000, 0, 200 }) { }
+            option_base(option_range{ 200, 16000, 0, 200 }) { } //?
 
     private:
         tm2_sensor&         _ep;
@@ -190,14 +191,14 @@ namespace librealsense
     public:
         float query() const override { return !_ep.is_manual_exposure(); }
 
-        void set(float value) override { return _ep.set_manual_exposure(1.f - value); }
+        void set(float value) override { return _ep.set_manual_exposure(1.f - value); } //
 
         const char* get_description() const override { return "Auto-Exposure"; }
 
         bool is_enabled() const override { return true; }
 
         explicit exposure_mode_option(tm2_sensor& ep) : _ep(ep),
-            option_base(option_range{ 0, 1, 1, 1 }) { }
+            option_base(option_range{ 0, 1, 1, 1 }) { } //
 
     private:
         tm2_sensor&         _ep;
@@ -274,7 +275,7 @@ namespace librealsense
         explicit motion_temperature_option(tm2_sensor& ep) :temperature_option(ep, temperature_type::TEMPERATURE_TYPE_MOTION) { }
     };
 
-    class md_tm2_parser : public md_attribute_parser_base
+    class md_tm2_parser : public md_attribute_parser_base //
     {
     public:
         md_tm2_parser(rs2_frame_metadata_value type) : _type(type) {}
@@ -310,7 +311,7 @@ namespace librealsense
             {
                 if (auto* vf = dynamic_cast<const video_frame*>(&frm))
                 {
-                    return (rs2_metadata_type)(vf->additional_data.timestamp*1e+3);
+                    return (rs2_metadata_type)(vf->additional_data.timestamp*1e+3); //
                 }
                 if (auto* mf = dynamic_cast<const motion_frame*>(&frm))
                 {
@@ -360,7 +361,7 @@ namespace librealsense
         : sensor_base("Tracking Module", owner, this), _device(owner)
     {
         LOG_DEBUG("Making a sensor " << this);
-        _source.set_max_publish_list_size(64); //increase frame source queue size for TM2
+        _source.set_max_publish_list_size(64); //increase frame source queue size for TM2 //
         register_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE, std::make_shared<md_tm2_parser>(RS2_FRAME_METADATA_ACTUAL_EXPOSURE));
         register_metadata(RS2_FRAME_METADATA_TEMPERATURE    , std::make_shared<md_tm2_parser>(RS2_FRAME_METADATA_TEMPERATURE));
         //Replacing md parser for RS2_FRAME_METADATA_TIME_OF_ARRIVAL
@@ -395,7 +396,7 @@ namespace librealsense
         // It is important not to throw here because this gets called
         // from ~tm2_device
         try {
-            // Use this as a proxy to know if we are still able to communicate with the device
+            // Use this as a proxy to know if we are still able to communicate with the device //
             bool device_valid = _stream_request && _interrupt_request;
 
             if (device_valid && _is_streaming)
@@ -413,7 +414,7 @@ namespace librealsense
                 stop_stream();
                 stop_interrupt();
 
-                // poll the firmware logs one last time
+                // poll the firmware logs one last time // until empty?
                 auto log_buffer = std::unique_ptr<bulk_message_response_get_and_clear_event_log>(new bulk_message_response_get_and_clear_event_log);
                 if(log_poll_once(log_buffer))
                     print_logs(log_buffer);
@@ -432,6 +433,7 @@ namespace librealsense
         stream_profiles results;
         std::map<uint8_t, std::shared_ptr<stream_profile_interface> > profile_map;
 
+        // bulk endpoint?
         bulk_message_request_get_supported_raw_streams request = {{ sizeof(request), DEV_GET_SUPPORTED_RAW_STREAMS }};
         char buffer[BUFFER_SIZE];
         auto response = (bulk_message_response_get_supported_raw_streams *)buffer;
@@ -459,7 +461,7 @@ namespace librealsense
                 auto profile = std::make_shared<video_stream_profile>(p);
                 profile->set_dims(p.width, p.height);
                 profile->set_stream_type(stream);
-                profile->set_stream_index(sensor_id + 1);  // for nice presentation by the viewer - add 1 to stream index
+                profile->set_stream_index(sensor_id + 1);  // for nice presentation by the viewer - add 1 to stream index //
                 profile->set_format(format);
                 profile->set_framerate(p.fps);
                 profile->set_unique_id(environment::get_instance().generate_stream_id());
@@ -492,7 +494,7 @@ namespace librealsense
                 }
                 auto profile = std::make_shared<motion_stream_profile>(platform::stream_profile{ uint32_t(format), 0, 0, tm_stream.wFramesPerSecond });
                 profile->set_stream_type(stream);
-                profile->set_stream_index(sensor_id); // for nice presentation by the viewer - add 1 to stream index
+                profile->set_stream_index(sensor_id);
                 profile->set_format(format);
                 profile->set_framerate(tm_stream.wFramesPerSecond);
                 profile->set_unique_id(environment::get_instance().generate_stream_id());
@@ -511,7 +513,7 @@ namespace librealsense
                 continue;
             }
             // This one should never show up, because the device doesn't
-            // actually stream poses over the bulk endpoint
+            // actually stream poses over the bulk endpoint // bulk
             else if(sensor_type == SensorType::Pose) {
                 LOG_ERROR("Found a pose stream but should not have one here");
                 continue;
@@ -541,7 +543,7 @@ namespace librealsense
         profile->set_unique_id(environment::get_instance().generate_stream_id());
 
         profile->tag_profile(profile_tag::PROFILE_TAG_DEFAULT | profile_tag::PROFILE_TAG_SUPERSET);
-        // The RS2_STREAM_POSE profile is the reference for extrinsics
+        // The RS2_STREAM_POSE profile is the reference for extrinsics //
         auto reference_profile = profile;
         results.push_back(profile);
         profile_map[SET_SENSOR_ID(SensorType::Pose, 0)] = profile;
@@ -562,7 +564,7 @@ namespace librealsense
         return results;
     }
 
-    void tm2_sensor::open(const stream_profiles& requests)
+    void tm2_sensor::open(const stream_profiles& requests) //
     {
         LOG_DEBUG("T265 open");
         std::lock_guard<std::mutex> lock(_tm_op_lock);
@@ -705,7 +707,7 @@ namespace librealsense
         set_active_streams({});
     }
 
-    void tm2_sensor::pass_frames_to_fw(frame_holder fref)
+    void tm2_sensor::pass_frames_to_fw(frame_holder fref) //
     {
         //TODO
         /*
@@ -810,8 +812,8 @@ namespace librealsense
         else if (!_is_opened)
             throw wrong_api_call_sequence_exception("start_streaming(...) failed. T265 device was not opened!");
 
-        start_interrupt();
-        start_stream();
+        start_interrupt(); //
+        start_stream(); //
 
         _source.set_callback(callback);
         raise_on_before_streaming_changes(true);
@@ -829,7 +831,7 @@ namespace librealsense
         if (_loopback) {
             auto& loopback_sensor = _loopback->get_sensor(0);
             auto handle_file_frames = [&](frame_holder fref) {
-                pass_frames_to_fw(std::move(fref));
+                pass_frames_to_fw(std::move(fref)); //?
             };
 
             frame_callback_ptr file_frames_callback = { new internal_frame_callback<decltype(handle_file_frames)>(handle_file_frames),
@@ -877,7 +879,7 @@ namespace librealsense
         int sensor_type = tm2_sensor_type(rtype);
         int sensor_id = tm2_sensor_id(rtype, rs2_index);
 
-        bulk_message_request_get_camera_intrinsics request = {{ sizeof(request), DEV_GET_CAMERA_INTRINSICS }};
+        bulk_message_request_get_camera_intrinsics request = {{ sizeof(request), DEV_GET_CAMERA_INTRINSICS }}; //
         request.bCameraID = SET_SENSOR_ID(sensor_type, sensor_id);
         bulk_message_response_get_camera_intrinsics response = {};
         _device->bulk_request_response(request, response);
@@ -931,7 +933,7 @@ namespace librealsense
         _device->bulk_request_response(request, response);
 
         if(response.extrinsics.bReferenceSensorID != SET_SENSOR_ID(SensorType::Pose, 0)) {
-            LOG_ERROR("Unexpected reference sensor id " << response.extrinsics.bReferenceSensorID);
+            LOG_ERROR("Unexpected reference sensor id " << response.extrinsics.bReferenceSensorID); //
         }
 
         rs2_extrinsics result{};
@@ -956,7 +958,7 @@ namespace librealsense
         request.intrinsics.flFy = intr.fy;
         request.intrinsics.flPpx = intr.ppx;
         request.intrinsics.flPpy = intr.ppy;
-        if(intr.model == RS2_DISTORTION_FTHETA)               request.intrinsics.dwDistortionModel = 1;
+        if(intr.model == RS2_DISTORTION_FTHETA)               request.intrinsics.dwDistortionModel = 1; // supported in tracker?
         else if(intr.model == RS2_DISTORTION_NONE)            request.intrinsics.dwDistortionModel = 3;
         else if(intr.model == RS2_DISTORTION_KANNALA_BRANDT4) request.intrinsics.dwDistortionModel = 4;
         else
@@ -1002,11 +1004,12 @@ namespace librealsense
                 return tf;
             };
 
+            // TODO: check row/column-major!
             auto& H_fe1_fe2 = extr;
             auto H_fe2_fe1  = inv(H_fe1_fe2);
             auto H_fe1_pose = get_extrinsics(from_profile, 0);
             auto H_fe2_pose = mult(H_fe2_fe1, H_fe1_pose);  //H_fe2_pose = H_fe2_fe1 * H_fe1_pose
-            set_extrinsics_to_ref(RS2_STREAM_FISHEYE, 2, H_fe2_pose);
+            set_extrinsics_to_ref(RS2_STREAM_FISHEYE, 2, H_fe2_pose); //
             break;
         }
         default:
@@ -1052,7 +1055,7 @@ namespace librealsense
     void tm2_sensor::write_calibration()
     {
         bulk_message_request_write_configuration request = {{ sizeof(request), DEV_WRITE_CONFIGURATION }};
-        request.wTableId = ID_OEM_CAL;
+        request.wTableId = ID_OEM_CAL; //
         // We send an implicitly 0 length bTable and the right table
         // id to tell us to write the calibration
         request.header.dwLength = offsetof(bulk_message_request_write_configuration, bTable);
@@ -1068,7 +1071,7 @@ namespace librealsense
         _device->bulk_request_response(request, response);
     }
 
-    void tm2_sensor::receive_pose_message(const interrupt_message_get_pose & pose_message)
+    void tm2_sensor::receive_pose_message(const interrupt_message_get_pose & pose_message) // interrupt
     {
         const pose_data & pose = pose_message.pose;
         // pose stream doesn't have a frame number, so we have to keep
@@ -1243,7 +1246,7 @@ namespace librealsense
                 return;
             }
 
-            interrupt_message_header* header = (interrupt_message_header*)request->get_buffer().data();
+            interrupt_message_header* header = (interrupt_message_header*)request->get_buffer().data(); //
             if(header->wMessageID == DEV_GET_POSE)
                 receive_pose_message(*((interrupt_message_get_pose*)header));
             else if(header->wMessageID == DEV_SAMPLE) {
@@ -1288,7 +1291,7 @@ namespace librealsense
                 auto ts = get_coordinated_timestamp(event->llNanoseconds);
                 std::string msg = to_string() << "T2xx: Relocalization occurred. id: " << event->wSessionId <<  ", timestamp: " << ts.global_ts.count() << " ms";
                 LOG_INFO(msg);
-                raise_relocalization_event(msg, ts.global_ts.count());
+                raise_relocalization_event(msg, ts.global_ts.count()); // interrupt
             }
             else
                 LOG_ERROR("Unknown interrupt message " <<  message_name(*((bulk_message_response_header*)header)) << " with status " << status_name(*((bulk_message_response_header*)header)));
@@ -1296,7 +1299,7 @@ namespace librealsense
             _device->submit_request(request);
         });
 
-        _interrupt_request = _device->interrupt_read_request(buffer, _interrupt_callback);
+        _interrupt_request = _device->interrupt_read_request(buffer, _interrupt_callback); // interrupt (endpoint)
         _device->submit_request(_interrupt_request);
         return true;
     }
@@ -1317,7 +1320,7 @@ namespace librealsense
 
         if (_stream_request) return false;
 
-        _stream_callback = std::make_shared<platform::usb_request_callback>([&](platform::rs_usb_request request) {
+        _stream_callback = std::make_shared<platform::usb_request_callback>([&](platform::rs_usb_request request) { // bulk?
             uint32_t transferred = request->get_actual_length();
             if(!transferred) {
                 LOG_ERROR("Stream transfer failed, exiting");
@@ -1425,7 +1428,7 @@ namespace librealsense
             bulk_message_response_get_time response = {};
 
             auto start = duration<double, std::milli>(environment::get_instance().get_time_service()->get_time());
-            platform::usb_status usb_response = _device->bulk_request_response(request, response);
+            platform::usb_status usb_response = _device->bulk_request_response(request, response); // shouldn't this use interrupt? (? time critical)
             if(usb_response != platform::RS2_USB_STATUS_SUCCESS) {
                 LOG_INFO("Got bad response, stopping time sync");
                 break;
@@ -1434,13 +1437,13 @@ namespace librealsense
 
             double device_ms = (double)response.llNanoseconds*1e-6;
             auto device = duration<double, std::milli>(device_ms);
-            auto diff = duration<double, std::nano>(start + (finish - start)/2 - device);
+            auto diff = duration<double, std::nano>(start + (finish - start)/2 - device); // assuming symmetry
             device_to_host_ns = diff.count();
 
-            LOG_DEBUG("T265 time synced, host_ns: " << device_to_host_ns.load());
+            LOG_DEBUG("T265 time synced, host_ns: " << device_to_host_ns.load());  // how big is this usually?
 
-            // Only trigger this approximately every 500ms, but don't
-            // wait 500ms to stop if we are requested to stop
+            // Only trigger this approximately every 500ms,
+            // but don't wait 500ms to stop if we are requested to stop
             for(int i = 0; i < 10; i++)
                 if(!_time_sync_thread_stop)
                     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -1513,7 +1516,7 @@ namespace librealsense
         _source.invoke_callback(std::move(frame));
     }
 
-    void tm2_sensor::raise_relocalization_event(const std::string& msg, double timestamp_ms)
+    void tm2_sensor::raise_relocalization_event(const std::string& msg, double timestamp_ms) //
     {
         notification event{ RS2_NOTIFICATION_CATEGORY_POSE_RELOCALIZATION, 0, RS2_LOG_SEVERITY_INFO, msg };
         event.timestamp = timestamp_ms;
@@ -1576,7 +1579,7 @@ namespace librealsense
     }
 
     tm2_sensor::async_op_state tm2_sensor::perform_async_transfer(std::function<bool()> transfer_activator,
-        std::function<void()> on_success, const std::string& op_description) const
+        std::function<void()> on_success, const std::string& op_description) const //
     {
         std::mutex _async_op_lock;
         std::unique_lock<std::mutex> lock(_async_op_lock);
@@ -1616,6 +1619,7 @@ namespace librealsense
         // the firmware to send map chunks via
         // SLAM_GET_LOCALIZATION_DATA_STREAM messages on the stream
         // endpoint, eventually ending in SUCCESS
+        //
         auto res = perform_async_transfer(
             [&]() {
                 _async_op_res_buffer.clear();
@@ -1638,7 +1642,7 @@ namespace librealsense
         return res == async_op_state::_async_success;
     }
 
-    bool tm2_sensor::import_relocalization_map(const std::vector<uint8_t>& lmap_buf) const
+    bool tm2_sensor::import_relocalization_map(const std::vector<uint8_t>& lmap_buf) const //
     {
         if(_is_streaming)
             throw wrong_api_call_sequence_exception("Unable to import relocalization map while streaming");
@@ -1652,7 +1656,7 @@ namespace librealsense
         // Import the map by sending chunks of with id SLAM_SET_LOCALIZATION_DATA_STREAM
         auto res = perform_async_transfer(
             [this, &lmap_buf]() {
-                const int MAX_BIG_DATA_MESSAGE_LENGTH = 10250; //(10240 (10k) + large message header size) 
+                const int MAX_BIG_DATA_MESSAGE_LENGTH = 10250; //(10240 (10k) + large message header size) //
                 size_t chunk_length = MAX_BIG_DATA_MESSAGE_LENGTH - offsetof(bulk_message_large_stream, bPayload);
                 size_t map_size = lmap_buf.size();
                 std::unique_ptr<uint8_t []> buf(new uint8_t[MAX_BIG_DATA_MESSAGE_LENGTH]);
@@ -1697,7 +1701,7 @@ namespace librealsense
     bool tm2_sensor::set_static_node(const std::string& guid, const float3& pos, const float4& orient_quat) const
     {
         bulk_message_request_set_static_node request = {{ sizeof(request), SLAM_SET_STATIC_NODE }};
-        strncpy((char *)&request.bGuid[0], guid.c_str(), MAX_GUID_LENGTH-1);
+        strncpy((char *)&request.bGuid[0], guid.c_str(), MAX_GUID_LENGTH-1); // #define MAX_GUID_LENGTH 128
         request.data.flX = pos.x;
         request.data.flY = pos.y;
         request.data.flZ = pos.z;
@@ -1738,7 +1742,7 @@ namespace librealsense
     }
 
 
-    bool tm2_sensor::load_wheel_odometery_config(const std::vector<uint8_t>& odometry_config_buf) const
+    bool tm2_sensor::load_wheel_odometery_config(const std::vector<uint8_t>& odometry_config_buf) const //
     {
         std::vector<uint8_t> buf;
         buf.resize(odometry_config_buf.size() + sizeof(bulk_message_request_header));
@@ -1757,9 +1761,9 @@ namespace librealsense
         return true;
     }
 
-    bool tm2_sensor::send_wheel_odometry(uint8_t wo_sensor_id, uint32_t frame_num, const float3& translational_velocity) const
+    bool tm2_sensor::send_wheel_odometry(uint8_t wo_sensor_id, uint32_t frame_num, const float3& translational_velocity) const //
     {
-        bulk_message_velocimeter_stream request = {{ sizeof(request), DEV_SAMPLE }};
+        bulk_message_velocimeter_stream request = {{ sizeof(request), DEV_SAMPLE }}; // interrupt? (vs. bulk)
         request.rawStreamHeader.bSensorID = SET_SENSOR_ID(SensorType::Velocimeter, wo_sensor_id);
         // These two timestamps get set by the firmware when it is received
         request.rawStreamHeader.llNanoseconds = 0;
@@ -1874,6 +1878,7 @@ namespace librealsense
             for(const auto & endpoint : endpoints) {
                 int addr = endpoint->get_address();
 
+                // mapping endpoint - type/direction
                 if      (addr == ENDPOINT_HOST_IN)  endpoint_bulk_in = endpoint;
                 else if (addr == ENDPOINT_HOST_OUT) endpoint_bulk_out = endpoint;
                 else if (addr == ENDPOINT_HOST_MSGS_IN)  endpoint_msg_in = endpoint;
@@ -1955,11 +1960,11 @@ namespace librealsense
         LOG_DEBUG("Destroying T265 device");
     }
 
-    void tm2_device::hardware_reset()
+    void tm2_device::hardware_reset() //
     {
         LOG_INFO("Sending hardware reset");
         uint32_t transferred;
-        usb_messenger->control_transfer(0x40, 0x10, 0, 0, nullptr, 0, transferred, USB_TIMEOUT);
+        usb_messenger->control_transfer(0x40, 0x10, 0, 0, nullptr, 0, transferred, USB_TIMEOUT); //
     }
 
     template<typename Request, typename Response>
