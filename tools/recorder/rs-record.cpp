@@ -13,6 +13,9 @@
 #include <string.h>
 #include <chrono>
 #include "tclap/CmdLine.h"
+#include <cmath>
+
+#define EXIT_NAN 2
 
 using namespace TCLAP;
 
@@ -32,9 +35,11 @@ int main(int argc, char * argv[]) try
     cfg.enable_record_to_file(out_file.getValue());
 
     std::mutex m;
+    bool nan = false;
     auto callback = [&](const rs2::frame& frame)
     {
         std::lock_guard<std::mutex> lock(m);
+
         auto t = std::chrono::system_clock::now();
         static auto tk = t;
         static auto t0 = t;
@@ -43,20 +48,29 @@ int main(int argc, char * argv[]) try
                       << "Recording t = "  << std::chrono::duration_cast<std::chrono::seconds>(t-t0).count() << "s" << std::flush;
             tk = t;
         }
+
+        if (rs2::pose_frame fp = frame.as<rs2::pose_frame>()) {
+            rs2_pose pose_data = fp.get_pose_data();
+            if (std::isnan(pose_data.translation.x)) {
+                nan = true; // exit callback before pipe.stop
+            }
+        }
     };
 
     rs2::pipeline_profile profiles = pipe.start(cfg, callback);
 
     auto t = std::chrono::system_clock::now();
     auto t0 = t;
-    while(t - t0 <= std::chrono::seconds(time.getValue())) {
+    while(t - t0 <= std::chrono::seconds(time.getValue()) && !nan) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         t = std::chrono::system_clock::now();
     }
-    std::cout << "\nFinished" << std::endl;
+    std::cout << "\nSaved to " << out_file.getValue() << std::endl;
 
     pipe.stop();
-
+    std::lock_guard<std::mutex> lock(m);
+    if (nan)
+        return EXIT_NAN;
     return EXIT_SUCCESS;
 }
 catch (const rs2::error & e)

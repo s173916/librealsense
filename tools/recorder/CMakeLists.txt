@@ -22,3 +22,10 @@ install(
     ${CMAKE_INSTALL_BINDIR}
 )
 
+add_custom_command(
+    TARGET rs-record POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+            ${CMAKE_CURRENT_SOURCE_DIR}/record_n.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/record_n.sh
+)
+
