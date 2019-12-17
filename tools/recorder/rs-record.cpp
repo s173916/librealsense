@@ -65,13 +65,12 @@ int main(int argc, char * argv[]) try
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         t = std::chrono::system_clock::now();
     }
-    std::cout << "\nSaved to " << out_file.getValue() << std::endl;
-
+    
     pipe.stop();
+    std::this_thread::sleep_for(std::chrono::milliseconds(500)); // wait for clean-up
+    std::cout << "\nSaved to " << out_file.getValue() << std::endl;
     std::lock_guard<std::mutex> lock(m);
-    if (nan)
-        return EXIT_NAN;
-    return EXIT_SUCCESS;
+    return nan ? EXIT_NAN : EXIT_SUCCESS;
 }
 catch (const rs2::error & e)
 {
