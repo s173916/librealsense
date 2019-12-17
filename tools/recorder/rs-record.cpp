@@ -61,7 +61,7 @@ int main(int argc, char * argv[]) try
 
     auto t = std::chrono::system_clock::now();
     auto t0 = t;
-    while(t - t0 <= std::chrono::seconds(time.getValue()) && !nan) {
+    while(t - t0 <= std::chrono::seconds(time.getValue())) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         t = std::chrono::system_clock::now();
     }
