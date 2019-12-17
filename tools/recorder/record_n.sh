@@ -8,7 +8,7 @@ do
     echo Recording to $fn \($i\)
     ./rs-record -t $T -f $fn
     if [ $? -eq 2 ]; then # EXIT_NAN = 2
-        echo "has NaN"
+        echo "# has NaN"
         ((j++))
     else
         echo "no NaN" # => overwrite
