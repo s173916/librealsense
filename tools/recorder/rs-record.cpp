@@ -22,17 +22,26 @@ using namespace TCLAP;
 int main(int argc, char * argv[]) try
 {
     // Parse command line arguments
-    CmdLine cmd("librealsense rs-record example tool", ' ');
+    CmdLine cmd("librealsense rs-record tool", ' ');
     ValueArg<int>    time("t", "Time", "Amount of time to record (in seconds)", false, 10, "");
-    ValueArg<std::string> out_file("f", "FullFilePath", "the file where the data will be saved to", false, "test.bag", "");
-
+    ValueArg<std::string> out_file("f", "FullFilePath", "File that the recording will be saved to", false, "test.bag", "");
+    SwitchArg disable_tracking("d", "DisableTracking", "Disables the tracking algorithm (only streams raw data)");
     cmd.add(time);
     cmd.add(out_file);
+    cmd.add(disable_tracking);
     cmd.parse(argc, argv);
 
     rs2::pipeline pipe;
     rs2::config cfg;
     cfg.enable_record_to_file(out_file.getValue());
+    if (disable_tracking.getValue()) {
+        //cfg.disable_stream(RS2_STREAM_POSE);
+        cfg.enable_stream(RS2_STREAM_FISHEYE, 1, RS2_FORMAT_Y8);
+        cfg.enable_stream(RS2_STREAM_FISHEYE, 2, RS2_FORMAT_Y8);
+        cfg.enable_stream(RS2_STREAM_ACCEL, 0, RS2_FORMAT_MOTION_XYZ32F);
+        cfg.enable_stream(RS2_STREAM_GYRO, 0, RS2_FORMAT_MOTION_XYZ32F);
+        // won't save extrinsics/ pose frame /device_0/sensor_0/Pose_0/tf/0
+    }
 
     std::mutex m;
     bool nan = false;
