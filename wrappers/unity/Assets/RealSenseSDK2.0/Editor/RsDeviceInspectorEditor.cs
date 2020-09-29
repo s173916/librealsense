@@ -5,18 +5,18 @@ using UnityEditor;
 using Intel.RealSense;
 using System;
 using System.Linq;
-
+using System.IO;
 
 public static class CameraOptionExtensions
 {
-    public static bool IsCheckbox(this Sensor.CameraOption opt)
+    public static bool IsCheckbox(this IOption opt)
     {
         return opt.Max == 1.0f &&
         opt.Min == 0.0f &&
         opt.Step == 1.0f;
     }
 
-    public static bool IsEnum(this Sensor.CameraOption opt, Sensor.SensorOptions s)
+    public static bool IsEnum(this IOption opt, IOptionsContainer s)
     {
         if (opt.Step < 0.001f)
             return false;
@@ -29,7 +29,7 @@ public static class CameraOptionExtensions
         return true;
     }
 
-    public static bool IsIntegersOnly(this Sensor.CameraOption opt)
+    public static bool IsIntegersOnly(this IOption opt)
     {
         Func<float, bool> is_integer = (v) => v == Math.Floor(v);
         return is_integer(opt.Min) && is_integer(opt.Max) &&
@@ -66,12 +66,43 @@ public class RsDeviceInspectorEditor : Editor
             return;
         }
 
+        var dev = deviceInspector.device;
+
         EditorGUILayout.Space();
-        var devName = deviceInspector.device.Info[CameraInfo.Name];
-        var devSerial = deviceInspector.device.Info[CameraInfo.SerialNumber];
+        var devName = dev.Info[CameraInfo.Name];
+        var devSerial = dev.Info[CameraInfo.SerialNumber];
         DrawHorizontal("Device", devName);
         DrawHorizontal("Device S/N", devSerial);
         EditorGUILayout.Space();
+
+        if (dev.Info.Supports(CameraInfo.AdvancedMode))
+        {
+            var adv = dev.As<AdvancedDevice>();
+            if (adv.AdvancedModeEnabled)
+            {
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("Preset", GUILayout.Width(EditorGUIUtility.labelWidth - 4));
+                if (GUILayout.Button("Load", GUILayout.ExpandWidth(true)))
+                {
+                    var path = EditorUtility.OpenFilePanel("Load Preset", "", "JSON");
+                    if (path.Length != 0)
+                    {
+                        adv.JsonConfiguration = File.ReadAllText(path);
+                        cachedValue.Clear();
+                        EditorUtility.SetDirty(target);
+                    }
+                }
+                if (GUILayout.Button("Save", GUILayout.ExpandWidth(true)))
+                {
+                    var path = EditorUtility.SaveFilePanel("Save Preset", "", "preset", "JSON");
+                    if (path.Length != 0)
+                    {
+                        File.WriteAllText(path, adv.JsonConfiguration);
+                    }
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+        }
 
         foreach (var kvp in deviceInspector.sensors)
         {
@@ -87,9 +118,9 @@ public class RsDeviceInspectorEditor : Editor
         }
     }
 
-    readonly Dictionary<Sensor.CameraOption, float> cachedValue = new Dictionary<Sensor.CameraOption, float>();
+    readonly Dictionary<IOption, float> cachedValue = new Dictionary<IOption, float>();
 
-    void DrawOption(Sensor sensor, Sensor.CameraOption opt)
+    void DrawOption(Sensor sensor, IOption opt)
     {
         if (!cachedValue.ContainsKey(opt))
             cachedValue[opt] = opt.Value;
@@ -100,7 +131,9 @@ public class RsDeviceInspectorEditor : Editor
         if (opt.ReadOnly)
         {
             EditorGUILayout.BeginHorizontal();
+            GUI.enabled = false;
             EditorGUILayout.LabelField(k, GUILayout.Width(EditorGUIUtility.labelWidth - 4));
+            GUI.enabled = true;
             EditorGUILayout.SelectableLabel(v.ToString(), EditorStyles.textField, GUILayout.Height(EditorGUIUtility.singleLineHeight));
             EditorGUILayout.EndHorizontal();
         }

@@ -6,39 +6,38 @@ using UnityEngine.Assertions;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Collections.Generic;
+using System.Linq;
 
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class RsPointCloudRenderer : MonoBehaviour
 {
+    public RsFrameProvider Source;
     private Mesh mesh;
     private Texture2D uvmap;
 
-    private RsVideoStreamRequest _videoStreamFilter;
-    private RsVideoStreamRequest _currVideoStreamFilter;
-
+    [NonSerialized]
     private Vector3[] vertices;
-    private GCHandle handle;
-    private IntPtr verticesPtr;
-    private int frameSize;
-    private IntPtr frameData;
 
-    private readonly AutoResetEvent e = new AutoResetEvent(false);
+    FrameQueue q;
 
     void Start()
     {
-        _videoStreamFilter = new RsVideoStreamRequest();
-        _currVideoStreamFilter = _videoStreamFilter.Clone();
-        RsDevice.Instance.OnNewSampleSet += OnFrames;
-        RsDevice.Instance.OnStop += Dispose;
+        Source.OnStart += OnStartStreaming;
+        Source.OnStop += Dispose;
     }
 
-    private void ResetMesh(RsVideoStreamRequest vsr)
+    private void OnStartStreaming(PipelineProfile obj)
     {
-        int width = vsr.Width;
-        int height = vsr.Height;
-        if (width == 0 || height == 0)
-            return;
-        Dispose();
+        q = new FrameQueue(1);
+
+        using (var depth = obj.Streams.FirstOrDefault(s => s.Stream == Stream.Depth && s.Format == Format.Z16).As<VideoStreamProfile>())
+            ResetMesh(depth.Width, depth.Height);
+
+        Source.OnNewSample += OnNewSample;
+    }
+
+    private void ResetMesh(int width, int height)
+    {
         Assert.IsTrue(SystemInfo.SupportsTextureFormat(TextureFormat.RGFloat));
         uvmap = new Texture2D(width, height, TextureFormat.RGFloat, false, true)
         {
@@ -56,8 +55,6 @@ public class RsPointCloudRenderer : MonoBehaviour
             };
 
         vertices = new Vector3[width * height];
-        handle = GCHandle.Alloc(vertices, GCHandleType.Pinned);
-        verticesPtr = handle.AddrOfPinnedObject();
 
         var indices = new int[vertices.Length];
         for (int i = 0; i < vertices.Length; i++)
@@ -83,85 +80,90 @@ public class RsPointCloudRenderer : MonoBehaviour
         mesh.bounds = new Bounds(Vector3.zero, Vector3.one * 10f);
 
         GetComponent<MeshFilter>().sharedMesh = mesh;
-        _currVideoStreamFilter = vsr.Clone();
     }
 
     void OnDestroy()
     {
-        Dispose();
+        if (q != null)
+        {
+            q.Dispose();
+            q = null;
+        }
 
-        if(mesh != null)
+        if (mesh != null)
             Destroy(null);
     }
 
     private void Dispose()
     {
-        e.Reset();
+        Source.OnNewSample -= OnNewSample;
 
-        if (handle.IsAllocated)
-            handle.Free();
-
-        if (frameData != IntPtr.Zero)
+        if (q != null)
         {
-            Marshal.FreeHGlobal(frameData);
-            frameData = IntPtr.Zero;
+            q.Dispose();
+            q = null;
         }
     }
 
-    private Points TryGetPoints(FrameSet frameset)
+    private void OnNewSample(Frame frame)
     {
-        foreach (var f in frameset)
+        if (q == null)
+            return;
+        try
         {
-            if (f is Points)
-                return f as Points;
-            f.Dispose();
-        }
-        return null;
-    }
-
-    private void OnFrames(FrameSet frames)
-    {
-        using (var points = TryGetPoints(frames))
-        {
-            if (points == null)
-                return;
-
-            using (var depth = frames.DepthFrame)
+            if (frame.IsComposite)
             {
-                if (_currVideoStreamFilter.Width != depth.Width || _currVideoStreamFilter.Height != depth.Height)
+                using (var fs = frame.As<FrameSet>())
+                using (var points = fs.FirstOrDefault<Points>(Stream.Depth, Format.Xyz32f))
                 {
-                    _videoStreamFilter.Width = depth.Width;
-                    _videoStreamFilter.Height = depth.Height;
-                    return;
+                    if (points != null)
+                    {
+                        q.Enqueue(points);
+                    }
                 }
+                return;
             }
 
-            memcpy(verticesPtr, points.VertexData, points.Count * 3 * sizeof(float));
-
-            frameSize = points.Count * 2 * sizeof(float);
-            if (frameData == IntPtr.Zero)
-                frameData = Marshal.AllocHGlobal(frameSize);
-            memcpy(frameData, points.TextureData, frameSize);
-
-            e.Set();
+            if (frame.Is(Extension.Points))
+            {
+                q.Enqueue(frame);
+            }
         }
-    }
-
-    protected void Update()
-    {
-        if (!_videoStreamFilter.Equals(_currVideoStreamFilter))
-            ResetMesh(_videoStreamFilter);
-
-        if (e.WaitOne(0))
+        catch (Exception e)
         {
-            uvmap.LoadRawTextureData(frameData, frameSize);
-            uvmap.Apply();
-
-            mesh.vertices = vertices;
-            mesh.UploadMeshData(false);
+            Debug.LogException(e);
         }
     }
-    
-    [DllImport("msvcrt.dll", EntryPoint = "memcpy", CallingConvention = CallingConvention.Cdecl, SetLastError = false)]
-    internal static extern IntPtr memcpy(IntPtr dest, IntPtr src, int count);
+
+
+    protected void LateUpdate()
+    {
+        if (q != null)
+        {
+            Points points;
+            if (q.PollForFrame<Points>(out points))
+                using (points)
+                {
+                    if (points.Count != mesh.vertexCount)
+                    {
+                        using (var p = points.GetProfile<VideoStreamProfile>())
+                            ResetMesh(p.Width, p.Height);
+                    }
+
+                    if (points.TextureData != IntPtr.Zero)
+                    {
+                        uvmap.LoadRawTextureData(points.TextureData, points.Count * sizeof(float) * 2);
+                        uvmap.Apply();
+                    }
+
+                    if (points.VertexData != IntPtr.Zero)
+                    {
+                        points.CopyVertices(vertices);
+
+                        mesh.vertices = vertices;
+                        mesh.UploadMeshData(false);
+                    }
+                }
+        }
+    }
 }

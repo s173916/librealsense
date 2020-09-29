@@ -223,59 +223,60 @@ describe('Frame test', function() {
   });
 });
 
-describe('Colorizer test', function() {
-  let pipe;
-  let frameset;
-  let depth;
-  let colorizer;
-  let ctx;
+if (!(isRecord || isPlayback)) {
+  
+  describe('Colorizer test', function() {
+    let pipe;
+    let frameset;
+    let depth;
+    let colorizer;
+    let ctx;
 
-  before(function() {
-    ctx = makeContext('colorizer');
-    pipe = new rs2.Pipeline(ctx);
-    pipe.start();
-    frameset = pipe.waitForFrames();
-    depth = frameset.depthFrame;
-    colorizer = new rs2.Colorizer();
-  });
+    before(function() {
+      ctx = makeContext('colorizer');
+      pipe = new rs2.Pipeline(ctx);
+      pipe.start();
+      frameset = pipe.waitForFrames();
+      depth = frameset.depthFrame;
+      colorizer = new rs2.Colorizer();
+    });
 
-  after(function() {
-    pipe.stop();
-    rs2.cleanup();
-  });
+    after(function() {
+      pipe.stop();
+      rs2.cleanup();
+    });
 
-  it('colorize test', () => {
-    const depthRGB = colorizer.colorize(depth);
-    assert.equal(depthRGB.height, depth.height);
-    assert.equal(depthRGB.width, depth.width);
-    assert.equal(depthRGB.format, rs2.format.FORMAT_RGB8);
-  });
-  it('colorizer option API test', () => {
-    for (let i = rs2.option.OPTION_BACKLIGHT_COMPENSATION; i < rs2.option.OPTION_COUNT; i++) {
-      let readonly = colorizer.isOptionReadOnly(i);
-      assert.equal((readonly === undefined) || (typeof readonly === 'boolean'), true);
-      let supports = colorizer.supportsOption(i);
-      assert.equal((supports === undefined) || (typeof supports === 'boolean'), true);
-      let value = colorizer.getOption(i);
-      assert.equal((value === undefined) || (typeof value === 'number'), true);
-      let des = colorizer.getOptionDescription(i);
-      assert.equal((des === undefined) || (typeof des === 'string'), true);
-      des = colorizer.getOptionValueDescription(i, 1);
-      assert.equal((des === undefined) || (typeof des === 'string'), true);
+    it('colorize test', () => {
+      const depthRGB = colorizer.colorize(depth);
+      assert.equal(depthRGB.height, depth.height);
+      assert.equal(depthRGB.width, depth.width);
+      assert.equal(depthRGB.format, rs2.format.FORMAT_RGB8);
+    });
+    it('colorizer option API test', () => {
+      for (let i = rs2.option.OPTION_BACKLIGHT_COMPENSATION; i < rs2.option.OPTION_COUNT; i++) {
+        let readonly = colorizer.isOptionReadOnly(i);
+        assert.equal((readonly === undefined) || (typeof readonly === 'boolean'), true);
+        let supports = colorizer.supportsOption(i);
+        assert.equal((supports === undefined) || (typeof supports === 'boolean'), true);
+        let value = colorizer.getOption(i);
+        assert.equal((value === undefined) || (typeof value === 'number'), true);
+        let des = colorizer.getOptionDescription(i);
+        assert.equal((des === undefined) || (typeof des === 'string'), true);
+        des = colorizer.getOptionValueDescription(i, 1);
+        assert.equal((des === undefined) || (typeof des === 'string'), true);
 
-      if (supports && !readonly) {
-        let range = colorizer.getOptionRange(i);
-        for (let j = range.minvalue; j <= range.maxValue; j += range.step) {
-          colorizer.setOption(i, j);
-          let val = colorizer.getOption(i);
-          assert.equal(val, j);
+        if (supports && !readonly) {
+          let range = colorizer.getOptionRange(i);
+          for (let j = range.minvalue; j <= range.maxValue; j += range.step) {
+            colorizer.setOption(i, j);
+            let val = colorizer.getOption(i);
+            assert.equal(val, j);
+          }
         }
       }
-    }
+    });
   });
-});
 
-if (!(isRecord || isPlayback)) {
   describe('Pointcloud and Points test', function() {
     let pipe;
     let frameset;
@@ -536,32 +537,32 @@ describe('Sensor tests', function() {
   }).timeout(5000);
 });
 
-describe('Align tests', function() {
-  let ctx;
-  let align;
-  let pipe;
+// describe('Align tests', function() {
+//  let ctx;
+//  let align;
+//  let pipe;
 
-  before(() => {
-    ctx = makeContext('align');
-    align = new rs2.Align(rs2.stream.STREAM_COLOR);
-    pipe = new rs2.Pipeline(ctx);
-  });
+//  before(() => {
+//    ctx = makeContext('align');
+//    align = new rs2.Align(rs2.stream.STREAM_COLOR);
+//    pipe = new rs2.Pipeline(ctx);
+//  });
 
-  after(() => {
-    pipe.stop();
-    rs2.cleanup();
-  });
+//  after(() => {
+//    pipe.stop();
+//    rs2.cleanup();
+//  });
 
-  it('process', () => {
-    pipe.start();
-    const frameset = pipe.waitForFrames();
-    const output = align.process(frameset);
-    const color = output.colorFrame;
-    const depth = output.depthFrame;
-    assert.equal(color instanceof rs2.VideoFrame, true);
-    assert.equal(depth instanceof rs2.DepthFrame, true);
-  });
-});
+//  it('process', () => {
+//    pipe.start();
+//    const frameset = pipe.waitForFrames();
+//    const output = align.process(frameset);
+//    const color = output.colorFrame;
+//    const depth = output.depthFrame;
+//    assert.equal(color instanceof rs2.VideoFrame, true);
+//    assert.equal(depth instanceof rs2.DepthFrame, true);
+//  });
+// });
 
 describe(('syncer test'), function() {
   let syncer;

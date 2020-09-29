@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Runtime.InteropServices;
 using System.Threading;
 using UnityEngine;
 using Intel.RealSense;
@@ -12,10 +9,10 @@ using System.Linq;
 /// Manages streaming using a RealSense Device
 /// </summary>
 [HelpURL("https://github.com/IntelRealSense/librealsense/tree/master/wrappers/unity")]
-public class RsDevice : MonoBehaviour
+public class RsDevice : RsFrameProvider
 {
     /// <summary>
-    /// The Paralllism mode of the module
+    /// The parallelism mode of the module
     /// </summary>
     public enum ProcessMode
     {
@@ -23,40 +20,30 @@ public class RsDevice : MonoBehaviour
         UnityThread,
     }
 
-    public static RsDevice Instance { get; private set; }
+    // public static RsDevice Instance { get; private set; }
 
     /// <summary>
-    /// Threading mode of operation, Multithreasds or Unitythread
+    /// Threading mode of operation, Multithread or UnityThread
     /// </summary>
     [Tooltip("Threading mode of operation, Multithreads or Unitythread")]
     public ProcessMode processMode;
 
-    public bool Streaming { get; private set; }
+    // public bool Streaming { get; private set; }
 
     /// <summary>
     /// Notifies upon streaming start
     /// </summary>
-    public event Action<PipelineProfile> OnStart;
+    public override event Action<PipelineProfile> OnStart;
 
     /// <summary>
     /// Notifies when streaming has stopped
     /// </summary>
-    public event Action OnStop;
+    public override event Action OnStop;
 
     /// <summary>
     /// Fired when a new frame is available
     /// </summary>
-    public event Action<Frame> OnNewSample;
-
-    /// <summary>
-    /// Fired when a new time-synchronized frame set is available
-    /// </summary>
-    public event Action<FrameSet> OnNewSampleSet;
-
-    /// <summary>
-    /// Provides access to the current pipeline profiles in use by the Manager
-    /// </summary>
-    public PipelineProfile ActiveProfile { get; private set; } //TODO: Make private and have other classes register OnStart and use that profile.
+    public override event Action<Frame> OnNewSample;
 
     /// <summary>
     /// User configuration
@@ -74,50 +61,16 @@ public class RsDevice : MonoBehaviour
 
     private Thread worker;
     private readonly AutoResetEvent stopEvent = new AutoResetEvent(false);
-
     private Pipeline m_pipeline;
-
-    public RsProcessingPipe _processingPipe;
-
-    void Awake()
-    {
-        if (Instance != null && Instance != this)
-            throw new Exception(string.Format("{0} singleton already instanced", this.GetType()));
-        Instance = this;
-    }
 
     void OnEnable()
     {
         m_pipeline = new Pipeline();
 
         using (var cfg = DeviceConfiguration.ToPipelineConfig())
-        {
             ActiveProfile = m_pipeline.Start(cfg);
-        }
 
-        using (var activeStreams = ActiveProfile.Streams)
-        {
-            DeviceConfiguration.Profiles = new RsVideoStreamRequest[activeStreams.Count];
-            for (int i = 0; i < DeviceConfiguration.Profiles.Length; i++)
-            {
-                var s = activeStreams[i];
-                var p = new RsVideoStreamRequest()
-                {
-                    Stream = s.Stream,
-                    Format = s.Format,
-                    Framerate = s.Framerate,
-                    StreamIndex = s.Index,
-                };
-                var vs = s as VideoStreamProfile;
-                if (vs != null)
-                {
-                    p.Width = vs.Width;
-                    p.Height = vs.Height;
-                }
-                DeviceConfiguration.Profiles[i] = p;
-            }
-        }
-
+        DeviceConfiguration.Profiles = ActiveProfile.Streams.Select(RsVideoStreamRequest.FromProfile).ToArray();
 
         if (processMode == ProcessMode.Multithread)
         {
@@ -141,7 +94,7 @@ public class RsDevice : MonoBehaviour
     void OnDisable()
     {
         OnNewSample = null;
-        OnNewSampleSet = null;
+        // OnNewSampleSet = null;
 
         if (worker != null)
         {
@@ -152,54 +105,47 @@ public class RsDevice : MonoBehaviour
         if (Streaming && OnStop != null)
             OnStop();
 
+        if (ActiveProfile != null)
+        {
+            ActiveProfile.Dispose();
+            ActiveProfile = null;
+        }
+
         if (m_pipeline != null)
         {
-            if (Streaming)
-                m_pipeline.Stop();
-            m_pipeline.Release();
+            // if (Streaming)
+            // m_pipeline.Stop();
+            m_pipeline.Dispose();
             m_pipeline = null;
         }
 
         Streaming = false;
+    }
+
+    void OnDestroy()
+    {
+        // OnStart = null;
+        OnStop = null;
 
         if (ActiveProfile != null)
         {
             ActiveProfile.Dispose();
             ActiveProfile = null;
         }
-    }
-
-    void OnDestroy()
-    {
-        OnStart = null;
-        OnStop = null;
 
         if (m_pipeline != null)
-            m_pipeline.Release();
-        m_pipeline = null;
-
-        Instance = null;
-    }
-
-    /// <summary>
-    /// Handles the current frame
-    /// </summary>
-    /// <param name="frame">The frame instance</param>
-    private void HandleFrame(Frame frame)
-    {
-        var s = OnNewSample;
-        if (s != null)
         {
-            s(frame);
+            m_pipeline.Dispose();
+            m_pipeline = null;
         }
     }
 
-    private void HandleFrameSet(FrameSet frames)
+    private void RaiseSampleEvent(Frame frame)
     {
-        var s = OnNewSampleSet;
-        if (s != null)
+        var onNewSample = OnNewSample;
+        if (onNewSample != null)
         {
-            s(frames);
+            onNewSample(frame);
         }
     }
 
@@ -211,9 +157,7 @@ public class RsDevice : MonoBehaviour
         while (!stopEvent.WaitOne(0))
         {
             using (var frames = m_pipeline.WaitForFrames())
-            {
-                OnNewFrameSet(frames);
-            }
+                RaiseSampleEvent(frames);
         }
     }
 
@@ -229,33 +173,8 @@ public class RsDevice : MonoBehaviour
         if (m_pipeline.PollForFrames(out frames))
         {
             using (frames)
-            {
-                OnNewFrameSet(frames);
-            }
+                RaiseSampleEvent(frames);
         }
     }
 
-    private void OnNewFrameSet(FrameSet frames)
-    {
-        if (_processingPipe != null)
-            _block.ProcessFrames(frames);
-        else
-        {
-            HandleFrameSet(frames);
-            foreach (var fr in frames)
-            {
-                using (fr)
-                    HandleFrame(fr);
-            }
-        }
-    }
-
-    private CustomProcessingBlock _block = new CustomProcessingBlock((f1, src) =>
-    {
-        using (var releaser = new FramesReleaser())
-        {
-            var frames = FrameSet.FromFrame(f1, releaser);
-            Instance._processingPipe.ProcessFrames(frames, src, releaser, Instance.HandleFrame, Instance.HandleFrameSet);
-        }
-    });
 }
